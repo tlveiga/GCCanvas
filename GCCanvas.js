@@ -21,7 +21,6 @@ var GCCanvas = (function () {
             throw "Canvas with id " + canvasid + " is not a valid element.";
 
         this._context = this._canvas.getContext("2d");
-
         this.onUpdate = null;
 
         this._objects = [];
@@ -46,6 +45,9 @@ var GCCanvas = (function () {
             get: function () { return self._objects; },
             at: function (index) { return self._objects[index]; }
         };
+
+        this.camera = new GCCanvas.Point(this._canvas.width / 2, this._canvas.height / 2, -1000);
+
         gameloop(this);
     }
 
@@ -53,8 +55,14 @@ var GCCanvas = (function () {
         var context = this._context;
         context.clearRect(0, 0, this._canvas.width, this._canvas.height);
         /* do updates */
+
+        var self = this;
         this._objects.forEach(function (f) {
             typeof (f.update) === 'function' && f.update(time);
+            // ALTERAR
+            var r = GCCanvas.PrespectiveProjection(self.camera, f.cur);
+            f._draw = new GCCanvas.Point(r.x, r.y);
+
         });
 
         typeof (this.onUpdate) === 'function' && this.onUpdate(time);
@@ -177,10 +185,10 @@ GCCanvas.Image = (function () {
 GCCanvas.Sprite = (function () {
     var _default_fps = 24;
 
-    function Sprite(image, x, y) {
-        this.cur = { x: x, y: y };
+    function Sprite(image, x, y, z) {
+        this.cur = new GCCanvas.Point(x, y, z);
         this.mov = this.cur;
-        this.delta = { x: 0, y: 0 };
+        this.delta = GCCanvas.Point.Zero();
 
         this.image = image;
         this.onMoveEnd = null;
@@ -192,8 +200,8 @@ GCCanvas.Sprite = (function () {
         this.velocity = 0;
     }
 
-    Sprite.prototype.moveTo = function (x, y, velocity) {
-        this.mov = { x: x, y: y };
+    Sprite.prototype.moveTo = function (point, velocity) {
+        this.mov = point;
         this.velocity = (velocity || 0) / 1000;
     }
 
@@ -203,15 +211,14 @@ GCCanvas.Sprite = (function () {
             this.Frame = this.animations.Frame;
         if (this._lastupdate > 0) {
             var timelapsed = gametime - this._lastupdate;
-            if ((this.mov.x !== this.cur.x || this.mov.y !== this.cur.y) && this.velocity > 0) {
+            if (!this.cur.isEqual(this.mov) && this.velocity > 0) {
                 var travel = this.velocity * timelapsed;
-                var v = { x: (this.mov.x - this.cur.x), y: (this.mov.y - this.cur.y) };
-                var theta = Math.atan2(v.y, v.x);
-                var distance = Math.sqrt(v.x * v.x + v.y * v.y);
+                var v = new GCCanvas.Vector(this.mov.minus(this.cur));
+                var distance = v.getPolar().magnitude;
                 if (distance > travel) {
-                    this.delta = { x: Math.cos(theta) * travel, y: Math.sin(theta) * travel };
-                    this.cur.x += this.delta.x;
-                    this.cur.y += this.delta.y;
+                    var point = v.pointDistantFromOrigin(travel);
+                    this.delta = point;
+                    this.cur = this.cur.plus(point);
                 }
                 else {
                     this.cur = this.mov;
@@ -226,12 +233,123 @@ GCCanvas.Sprite = (function () {
 
     Sprite.prototype.draw = function (context) {
         if (this.image.Loaded) {
-            this.image.draw(context, this.cur.x, this.cur.y, this.Frame);
+            this.image.draw(context, this._draw.x, this._draw.y, this.Frame);
         }
     }
 
     return Sprite;
 })();
+
+GCCanvas.Point = (function () {
+    function Point(x, y, z) {
+        this.x = x || 0;
+        this.y = y || 0;
+        this.z = z || 0;
+
+        this._distancetoorigin = null;
+    }
+
+    Point.Precision = 0.0001;
+
+    Point.prototype.minus = function (p) {
+        return new Point((this.x - p.x), (this.y - p.y), (this.z - p.z));
+    }
+
+    Point.prototype.plus = function (p) {
+        return new Point((this.x + p.x), (this.y + p.y), (this.z + p.z));
+    }
+
+    Point.prototype.distanceToPoint = function (p) {
+        var v = this.minus(p);
+        return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+    }
+
+    Point.prototype.distanceToOrigin = function (p) {
+        if (this._distancetoorigin === null)
+            this._distancetoorigin = Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+        return this._distancetoorigin;
+    }
+
+    Point.prototype.isEqual = function (p) {
+        var v = this.minus(p);
+        return p.x < Point.Precision && p.y < Point.Precision && p.z < Point.Precision;
+    }
+
+    Point.Zero = function () {
+        return new Point();
+    }
+
+    return Point;
+})();
+
+GCCanvas.Vector = (function () {
+    function toPolar(point) {
+        var mag = point.distanceToOrigin();
+        var pol = Math.acos(point.z / mag);
+        var azi = Math.atan2(point.y, point.x);
+        return { magnitude: mag, polar: pol, azimuth: azi };
+    }
+
+    function toCartesian(mag, pol, azi) {
+        return new GCCanvas.Point(
+            mag * Math.sin(pol) * Math.cos(azi),
+            mag * Math.sin(pol) * Math.sin(azi),
+            mag * Math.cos(pol));
+    }
+
+
+    function Vector() {
+        this._polar = null;
+        this._cartesian = null;
+
+        switch (arguments.length) {
+            case 1: // point
+                this._cartesian = new GCCanvas.Point(arguments[0].x, arguments[0].y, arguments[0].z);
+                break;
+            case 2: //points
+                var v = arguments[1].minus(arguments[0]);
+                this._cartesian = v;
+                break;
+            case 3: // mag + polar angle + azimuthal angle
+                this._polar = { magnitude: arguments[0], polar: arguments[1], azimuth: arguments[2] };
+                break;
+            default: // zero
+                this._cartesian = GCCanvas.Point.Zero();
+                this._polar = { magnitude: 0, polar: 0, azimuth: 0 };
+                break;
+        }
+    }
+
+    Vector.Precision = 0.0001;
+
+    Vector.prototype.pointDistantFromOrigin = function (distance) {
+        var polar = this.getPolar();
+        return toCartesian(distance, polar.polar, polar.azimuth);
+    }
+
+    Vector.prototype.getCartesian = function () {
+        if (this._cartesian === null)
+            this._cartesian = toCartesian(this._polar.magnitude, this._polar.polar, this._polar.azimuth);
+        return this._vector;
+    }
+
+    Vector.prototype.getPolar = function () {
+        if (this._polar === null)
+            this._polar = toPolar(this._cartesian);
+        return this._polar;
+    }
+
+    Vector.prototype.isEqual = function (p) {
+        return this.getCartesian().isEqual(p.getCartesian());
+    }
+
+    Vector.Zero = function () {
+        return new Vector();
+    }
+
+    return Vector;
+})();
+
 
 
 /* Helper functions */
@@ -249,4 +367,17 @@ GCCanvas.range = function (start, end, step) {
     for (var i = 0; i < arr.length; i++)
         arr[i] = step * i + start;
     return arr;
+}
+
+GCCanvas.PrespectiveProjection = function (eye, point) {
+    var epz = eye.z + point.z;
+    return {
+        x: (eye.z * (point.x - eye.x) / (epz) + eye.x),
+        y: (eye.z * (point.y - eye.y) / (epz) + eye.y)
+    };
+};
+
+GCCanvas.PrespectiveProjectionSize =  function (eye, sz, dst) {
+    var epz = eye.z / (eye.z + dst);
+    return sz * epz;
 }
