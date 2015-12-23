@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Teste do Canvas</title>
+    <style type="text/css">
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #canvas {
+            display: block;
+            /*width: 100%;
+            height: 100%;*/
+        }
+    </style>
+</head>
+
+<body>
+    <p id="canvass">Example</p>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <button onclick="play()">play</button>
+    <button onclick="resume()">resume</button>
+    <button onclick="stop()">stop</button>
+    <script src="GCCanvas.js"></script>
+    <script>
+        var sides = ["up", "left", "right", "down"];
+        var side = 0;
+        function play() {
+            side++;
+            if (side == sides.length) side = 0;
+            canvas.objects.get().forEach(function (s, i) {
+                s.animations.play(sides[side]);
+            });
+        }
+
+        function stop() {
+            canvas.objects.get().forEach(function (s, i) {
+                s.animations.stop();
+            });
+        }
+
+        function resume() {
+            canvas.objects.get().forEach(function (s, i) {
+                s.animations.resume();
+            });
+        }
+
+
+        var canvas = new GCCanvas("canvas");
+
+        var img = new GCCanvas.Image("man", "http://opengameart.org/sites/default/files/styles/watermarked/public/lpc-art/professor_walk_cycle_no_hat.png", 64, 64, function (obj) {
+            console.log("image loaded", obj);
+        });
+
+        for (var i = 0; i < 20; i++) {
+            var sprite = new GCCanvas.Sprite(img, 0, 0);
+            sprite.animations.add("up", GCCanvas.range(1, 9));
+            sprite.animations.add("left", GCCanvas.range(11, 18));
+            sprite.animations.add("down", GCCanvas.range(20, 27));
+            sprite.animations.add("right", GCCanvas.range(29, 36));
+
+
+            canvas.objects.add(sprite);
+        }
+
+
+
+        canvas.onUpdate = function (time) {
+            this.objects.get().forEach(function (s, i) {
+                s.moveTo(new GCCanvas.Point(eye.x, eye.y, (i * 10)), 500);
+            });
+        };
+
+        var eye = {};
+        function getMousePos(canvas, evt) {
+            var rect = canvas.getBoundingClientRect();
+            return {
+                x: evt.clientX - rect.left,
+                y: evt.clientY - rect.top
+            };
+        }
+
+        canvas._canvas.addEventListener('mousemove', function (evt) {
+            var mousePos = getMousePos(canvas._canvas, evt);
+
+            eye.x = mousePos.x;
+            eye.y = mousePos.y;
+
+        }, false);
+
+        /*
+
+        (function (w) {
+            var requestAnimFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || function (callback) { setTimeout(callback, 1000 / 60); };
+
+            var _fps = [];
+
+            var eye = { x: canvas.width / 2, y: canvas.height / 2, z: -1000 };
+            var angle = { x: 0, y: 0, z: 0 };
+            var screen = { x: canvas.width / 2, y: canvas.height / 2, z: 1000 };
+
+            function S(eye, point) {
+                return projection(point, eye, angle, screen);
+            }
+
+            function S1(eye, point) {
+                var epz = eye.z + point.z;
+                return {
+                    x: (eye.z * (point.x - eye.x) / (epz) + eye.x),
+                    y: (eye.z * (point.y - eye.y) / (epz) + eye.y)
+                };
+            }
+
+            function Sz(eye, sz, dst) {
+                var epz = eye.z / (eye.z + dst);
+                return sz * epz;
+            }
+
+            function createLine() {
+                var x = Math.random() > 0.5 ? -Math.random() * canvas.width * 3 : Math.random() * canvas.width * 3 + canvas.width;
+                var y = Math.random() > 0.5 ? -Math.random() * canvas.height * 3 : Math.random() * canvas.height * 3 + canvas.height;
+                var z = Math.random() * 1000 + 30000;
+                return {
+                    b: { x: x, y: y, z: z },
+                    e: { x: x, y: y, z: z + 1000 },
+                    w: 100,
+                    h: 0
+                };
+            }
+
+            function out(p) {
+                return p.x < 0 || p.y < 0;
+            }
+
+            var _lines = [];
+
+            function update() {
+                var tm = (new Date()).getTime(),
+					ts = tm - _lastupdate;
+                _lastupdate = tm;
+                _fps.push(1000 / ts);
+                if (_fps.length > 60)
+                    _fps.shift();
+
+
+                _lines = _lines.filter(function (f) {
+                    return f.b.z > 0 || f.e.z > 0;
+                });
+
+
+                if (Math.random() > 0.3) {
+                    _lines.push(createLine());
+                }
+
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                _lines.forEach(function (l) {
+                    context.beginPath();
+                    var b = S(eye, l.b);
+                    context.moveTo(b.x, b.y);
+                    var e = S(eye, l.e);
+                    context.lineTo(e.x, e.y);
+                    var w = Sz(eye, l);
+                    context.lineWidth = Sz(eye, 10, l.b.z);
+
+                    if (l.b.z === 0 || l.e.z === 0)
+                        context.strokeStyle = '#ff0000';
+                    else
+                        context.strokeStyle = '#000000';
+
+                    context.stroke();
+
+
+                    l.b.z = Math.max(0, l.b.z - 100);
+                    l.e.z = Math.max(0, l.e.z - 100);
+
+                });
+
+                //for	(var i = 0; i < 100000000; i++) {}
+                //setTimeout(update, _fps <= _needfps ? 0 : 1000 / (_needfps));
+            }
+
+            function gameloop() {
+                update();
+                requestAnimFrame(gameloop);
+            }
+            gameloop();
+
+            function getMousePos(canvas, evt) {
+                var rect = canvas.getBoundingClientRect();
+                return {
+                    x: evt.clientX - rect.left,
+                    y: evt.clientY - rect.top
+                };
+            }
+            canvas.addEventListener('mousemove', function (evt) {
+                var mousePos = getMousePos(canvas, evt);
+
+                eye.x = mousePos.x;
+                eye.y = mousePos.y;
+
+            }, false);
+
+
+            var _sz = { w: 0, h: 0 };
+
+            function getSize(elem) {
+                if (elem) {
+                    return {
+                        w: elem.clientWidth,
+                        h: elem.clientHeight
+                    };
+                }
+            }
+
+            window.onresize = function () {
+                _sz = getSize(canvas);
+                console.log(_sz);
+            };
+
+
+            w.GCCanvas = function (canvas) {
+                this.canvas = canvas;
+                this.context = canvas.getContext("2d");
+
+                this.timestart = (new Date()).getTime();
+                this._lastupdate = _timestart;
+            };
+
+
+
+            //context.fillRect(5, 5, 145, 145);
+
+            _sz = getSize(canvas);
+
+        })(window);
+
+        var canvas = new GCCanvas(document.getElementById("canvas"));
+        canvas.start();*/
+    </script>
+</body>
+
+</html>
