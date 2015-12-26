@@ -46,7 +46,7 @@ var GCCanvas = (function () {
             at: function (index) { return self._objects[index]; }
         };
 
-        this.camera = new GCCanvas.Point(this._canvas.width / 2, this._canvas.height / 2, -1000);
+        this.camera = new GCCanvas.Point(this._canvas.width / 2, this._canvas.height / 2, 1000);
 
         gameloop(this);
     }
@@ -66,6 +66,10 @@ var GCCanvas = (function () {
         });
 
         typeof (this.onUpdate) === 'function' && this.onUpdate(time);
+        
+        //this._objects.sort(function (a, b) {
+        //    return a.cur.z - b.cur.z;
+        //});
 
         this._objects.forEach(function (f) {
             typeof (f.draw) === 'function' && f.draw(context);
@@ -162,7 +166,9 @@ GCCanvas.Image = (function () {
 
             self.Loaded = true;
             self.height = fH;
+            self._halfHeight = fH / 2;
             self.width = fW;
+            self._halfWidth = fW / 2;
 
             loadedcb && loadedcb(self);
         };
@@ -183,8 +189,6 @@ GCCanvas.Image = (function () {
 })();
 
 GCCanvas.Sprite = (function () {
-    var _default_fps = 24;
-
     function Sprite(image, x, y, z) {
         this.cur = new GCCanvas.Point(x, y, z);
         this.mov = this.cur;
@@ -233,7 +237,7 @@ GCCanvas.Sprite = (function () {
 
     Sprite.prototype.draw = function (context) {
         if (this.image.Loaded) {
-            this.image.draw(context, this._draw.x, this._draw.y, this.Frame);
+            this.image.draw(context, this._draw.x - this.image._halfWidth, this._draw.y - this.image._halfHeight, this.Frame);
         }
     }
 
@@ -272,11 +276,11 @@ GCCanvas.Point = (function () {
 
     Point.prototype.isEqual = function (p) {
         var v = this.minus(p);
-        return p.x < Point.Precision && p.y < Point.Precision && p.z < Point.Precision;
+        return Math.abs(v.x) < Point.Precision && Math.abs(v.y) < Point.Precision && Math.abs(v.z) < Point.Precision;
     }
 
     Point.Zero = function () {
-        return new Point();
+        return new Point(0, 0, 0);
     }
 
     return Point;
