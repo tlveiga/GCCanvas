@@ -82,7 +82,7 @@ var GCCanvas = (function () {
         typeof (this.onUpdate) === 'function' && this.onUpdate(time);
 
         var order = this._objects.map(function (f, i) {
-            return { z: f.cur.z, i: i };
+            return { z: f.cur && f.cur.z || 0, i: i };
         });
         order.sort(function (a, b) {
             return b.z - a.z;
@@ -199,8 +199,10 @@ GCCanvas.Image = (function () {
 
             self.Loaded = true;
             self.height = fH;
+            self.OriginalHeight = fH;
             self._halfHeight = fH / 2;
             self.width = fW;
+            self.OriginalWidth = fW;
             self._halfWidth = fW / 2;
 
             loadedcb && loadedcb(self);
@@ -209,16 +211,68 @@ GCCanvas.Image = (function () {
         this.Loaded = false;
         this.FrameCount = 0;
         this.Frames = {};
+        
+        /* Draw Variables */
+        this.x = 0;
+        this.y = 0;
+        this.frame = 0;
+        this.height = 0;
+        this.width = 0;
     }
 
     Image.prototype.draw = function (context, x, y, frame, width, height) {
-        var f = frame && this.Frames[frame] || { x: 0, y: 0 };
+        if (!this.Loaded) return;
+        var frm = frame !== undefined ? frame : this.frame;
+        var f = frm && this.Frames[frm] || { x: 0, y: 0 };
 
-        context.drawImage(this._img, f.x, f.y, this.width, this.height, x || 0, y || 0, width || this.width, height || this.height);
-
+        context.drawImage(this._img, f.x, f.y, this.OriginalWidth, this.OriginalHeight, x !== undefined ? x : this.x || 0, y !== undefined ? y : this.y || 0, width !== undefined ? width : this.width, height !== undefined ? height : this.height);
     }
 
     return Image;
+})();
+
+GCCanvas.SVG = (function () {
+    function SVG(id, data, frame_width, frame_height, loadedcb) {
+        var self = this;
+        
+        var DOMURL = window.URL || window.webkitURL || window;
+        
+        this._img = new Image();
+        this._img.onload = function () {
+            var h = this.naturalHeight || this.height,
+                w = this.naturalWidth || this.width;
+
+            self.Loaded = true;
+            self.height = h;
+            self.OriginalHeight = h;
+            self._halfHeight = h / 2;
+            self.width = w;
+            self.OriginalWidth = w;
+            self._halfWidth = w / 2;
+            loadedcb && loadedcb(self);
+            
+        };
+        var svg = new Blob([data], {type: 'image/svg+xml;charset=utf-8'});
+        var url = DOMURL.createObjectURL(svg);
+        this._img.src = url;
+        
+        this.Loaded = false;
+        
+        /* Draw Variables */
+        this.x = 0;
+        this.y = 0;
+        this.frame = 0;
+        this.height = 0;
+        this.width = 0;
+    }
+
+    SVG.prototype.draw = function (context, x, y, width, height) {
+        if (!this.Loaded) return;
+        context.drawImage(this._img, 0, 0, this.width, this.height, x || 0, y || 0, width || this.width, height || this.height);
+
+    }
+
+    return SVG;
 })();
 
 GCCanvas.Sprite = (function () {
@@ -271,8 +325,8 @@ GCCanvas.Sprite = (function () {
                 //var box = GCCanvas.GetRect(center, this.image.width, this.image.height);
             }
 
-            var width = tsize(this.cur, this.image.width),
-                height = tsize(this.cur, this.image.height),
+            var width = tsize(this.cur, this.image.OriginalWidth),
+                height = tsize(this.cur, this.image.OriginalHeight),
                 center = tpoint(this.cur);
             center.x -= width / 2;
             center.y -= height / 2;
