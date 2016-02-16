@@ -56,6 +56,9 @@
         var img = new GCCanvas.Image("man", "http://opengameart.org/sites/default/files/styles/watermarked/public/lpc-art/professor_walk_cycle_no_hat.png", 64, 64, function (obj) {
             console.log("image loaded", obj);
         });
+        
+        var svg = new GCCanvas.SVG("star", '<svg xmlns="http://www.w3.org/2000/svg" height="210" width="500"><polygon points="100,10 40,198 190,78 10,78 160,198" style="fill:lime;stroke:purple;stroke-width:5;fill-rule:evenodd;"/></svg>');
+        
 
         for (var i = 0; i < 20; i++) {
             var sprite = new GCCanvas.Sprite(img, 0, 0);
@@ -69,10 +72,12 @@
         }
 
 
+        canvas.objects.add(svg);
+
 
         canvas.onUpdate = function (time) {
             this.objects.get().forEach(function (s, i) {
-                s.moveTo(new GCCanvas.Point(eye.x, eye.y, (i * 10)), 500);
+                s.moveTo && s.moveTo(new GCCanvas.Point(eye.x, eye.y, (i * 10)), 500);
             });
         };
 
