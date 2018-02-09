@@ -1,0 +1,7 @@
+{
+  "name": "gccanvas",
+  "version": "1.0.0",
+  "description": "GCCanvas",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts"
+}
